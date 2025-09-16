@@ -1,6 +1,7 @@
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:livekit_client/livekit_client.dart';
+import '../config/livekit_config.dart';
 
 class AiScreen extends StatefulWidget {
   const AiScreen({super.key});
@@ -12,6 +13,14 @@ class AiScreen extends StatefulWidget {
 class _AiScreenState extends State<AiScreen> with TickerProviderStateMixin {
   late AnimationController _waveController;
   late AnimationController _pulseController;
+
+  // LiveKit state
+  Room? _room;
+  bool _isConnected = false;
+  bool _isMicrophoneEnabled = false;
+
+  // LiveKit configuration
+  static const String _livekitUrl = LiveKitConfig.serverUrl;
 
   @override
   void initState() {
@@ -25,13 +34,116 @@ class _AiScreenState extends State<AiScreen> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat();
+
+    // Initialize LiveKit connection
+    _initializeLiveKit();
   }
 
   @override
   void dispose() {
     _waveController.dispose();
     _pulseController.dispose();
+    _room?.localParticipant?.removeListener(_onLocalParticipantUpdate);
+    _room?.dispose();
     super.dispose();
+  }
+
+  // LiveKit methods
+  Future<void> _initializeLiveKit() async {
+    try {
+      // Configure room options
+      final roomOptions = RoomOptions(adaptiveStream: true, dynacast: true);
+
+      // Create room with options
+      _room = Room(roomOptions: roomOptions);
+
+      // Set up room event listeners
+      _room!.addListener(_onRoomUpdate);
+
+      // Add track event listeners
+      _room!.localParticipant?.addListener(_onLocalParticipantUpdate);
+
+      // Generate token dynamically
+      final token = LiveKitConfig.token;
+
+      print('🔗 Attempting to connect to LiveKit...');
+      print('🔗 Server: $_livekitUrl');
+      print('🔗 Room: ${LiveKitConfig.roomName}');
+      print('🔗 Token: ${token.substring(0, 50)}...');
+
+      // Connect to the room
+      await _room!.connect(_livekitUrl, token);
+
+      setState(() {
+        _isConnected = true;
+      });
+
+      print('✅ LiveKit connected successfully!');
+      print('Room: ${_room!.name}');
+      print('Participants: ${_room!.remoteParticipants.length}');
+      print('Local participant: ${_room!.localParticipant?.identity}');
+
+      // Enable microphone by default
+      await _toggleMicrophone();
+    } catch (error) {
+      print('❌ Failed to connect to LiveKit: $error');
+
+      // Show user-friendly error message
+      if (mounted) {
+        _showErrorSnackBar(
+          'LiveKit connection failed. Check server credentials or network.',
+        );
+      }
+
+      // Set connection state to false
+      setState(() {
+        _isConnected = false;
+      });
+    }
+  }
+
+  void _onRoomUpdate() {
+    if (mounted && _room != null) {
+      setState(() {
+        _isMicrophoneEnabled =
+            _room!.localParticipant?.isMicrophoneEnabled() ?? false;
+      });
+    }
+  }
+
+  void _onLocalParticipantUpdate() {
+    if (mounted && _room != null) {
+      setState(() {
+        _isMicrophoneEnabled =
+            _room!.localParticipant?.isMicrophoneEnabled() ?? false;
+      });
+    }
+  }
+
+  Future<void> _toggleMicrophone() async {
+    try {
+      if (_room != null && _room!.localParticipant != null) {
+        final newState = !_isMicrophoneEnabled;
+        await _room!.localParticipant!.setMicrophoneEnabled(newState);
+        setState(() {
+          _isMicrophoneEnabled = newState;
+        });
+
+        // Microphone state is now handled directly by LiveKit
+        print('🎤 Microphone ${newState ? 'enabled' : 'disabled'}');
+      }
+    } catch (error) {
+      print('Failed to toggle microphone: $error');
+      _showErrorSnackBar('Failed to toggle microphone');
+    }
+  }
+
+  void _showErrorSnackBar(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
+    }
   }
 
   @override
@@ -54,21 +166,26 @@ class _AiScreenState extends State<AiScreen> with TickerProviderStateMixin {
                 children: [
                   _buildAudioAnimation(),
                   const SizedBox(height: 30),
-                  const Text(
-                    'Listening...',
+                  Text(
+                    _isConnected
+                        ? (_isMicrophoneEnabled
+                              ? 'Listening...'
+                              : 'Microphone Off')
+                        : 'Connecting...',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 18,
-                      fontWeight: FontWeight.w500
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(height: 10),
-                  const Text(
-                    'Tap and hold to speak',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                    ),
+                  Text(
+                    _isConnected
+                        ? (_isMicrophoneEnabled
+                              ? 'Tap microphone to mute'
+                              : 'Tap to enable microphone')
+                        : 'Establishing connection...',
+                    style: TextStyle(color: Colors.white70, fontSize: 14),
                   ),
                 ],
               ),
@@ -114,11 +231,11 @@ class _AiScreenState extends State<AiScreen> with TickerProviderStateMixin {
             ),
           ),
           const SizedBox(width: 15),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Esha',
                   style: TextStyle(
                     color: Colors.white,
@@ -127,11 +244,12 @@ class _AiScreenState extends State<AiScreen> with TickerProviderStateMixin {
                   ),
                 ),
                 Text(
-                  'Online • Ready to chat',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                  ),
+                  _isConnected
+                      ? (_isMicrophoneEnabled
+                            ? 'Online • Ready to chat'
+                            : 'Online • Mic disabled')
+                      : 'Connecting...',
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
                 ),
               ],
             ),
@@ -159,37 +277,44 @@ class _AiScreenState extends State<AiScreen> with TickerProviderStateMixin {
 
           // Audio Waves
           Container(
-             width: 200,
+            width: 200,
             height: 200,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.white.withOpacity(0.1)
+              color: Colors.white.withOpacity(0.1),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(5, (index) {
-                final heights = [20.0, 35.0, 50.0, 35.0, 20.0];
-                final delays = [0.0, 0.2, 0.4, 0.6, 0.8];
-                
-                return AnimatedBuilder(
-                  animation: _waveController,
-                  builder: (context, child) {
-                    final double animationValue = (_waveController.value + delays[index]) % 1.0;
-                    final double scale = 0.5 + 0.5 * (0.5 - (animationValue - 0.5).abs()) * 2;
+            child: _isMicrophoneEnabled && _isConnected
+                ? Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(5, (index) {
+                      final heights = [20.0, 35.0, 50.0, 35.0, 20.0];
+                      final delays = [0.0, 0.2, 0.4, 0.6, 0.8];
 
-                    return Container(
-                      width: 4,
-                      height: heights[index] * scale,
-                      margin: const EdgeInsets.symmetric(horizontal: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    );
-                  },
-                );
-              }),
-            ),
+                      return AnimatedBuilder(
+                        animation: _waveController,
+                        builder: (context, child) {
+                          final double animationValue =
+                              (_waveController.value + delays[index]) % 1.0;
+                          final double scale =
+                              0.5 +
+                              0.5 * (0.5 - (animationValue - 0.5).abs()) * 2;
+
+                          return Container(
+                            width: 4,
+                            height: heights[index] * scale,
+                            margin: const EdgeInsets.symmetric(horizontal: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          );
+                        },
+                      );
+                    }),
+                  )
+                : const Center(
+                    child: Icon(Icons.mic_off, color: Colors.white70, size: 48),
+                  ),
           ),
         ],
       ),
@@ -207,8 +332,8 @@ class _AiScreenState extends State<AiScreen> with TickerProviderStateMixin {
         return Transform.scale(
           scale: scale,
           child: Container(
-             width: 200,
-             height: 200,
+            width: 200,
+            height: 200,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
@@ -229,40 +354,23 @@ class _AiScreenState extends State<AiScreen> with TickerProviderStateMixin {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-           SizedBox(width: 60),
-          // Mute Button
+          // Microphone Toggle Button
           Material(
-            color: Colors.white.withOpacity(0.2),
+            color: _isMicrophoneEnabled
+                ? const Color(0xFF4a6741)
+                : Colors.red.withOpacity(0.3),
             shape: const CircleBorder(),
             clipBehavior: Clip.antiAlias,
+            elevation: 8.0,
             child: IconButton(
-              icon: const Icon(Icons.mic_off, color: Colors.white),
-              onPressed: () {},
-              iconSize: 28,
-              padding: const EdgeInsets.all(16),
-            ),
-          ),
-          const SizedBox(width: 20),
-          // Record Button
-          Material(
-             color: const Color(0xFF4a6741),
-             shape: const CircleBorder(),
-             clipBehavior: Clip.antiAlias,
-             elevation: 8.0,
-             child: IconButton(
-              icon: const Icon(Icons.mic, color: Colors.white),
-              onPressed: () {},
+              icon: Icon(
+                _isMicrophoneEnabled ? Icons.mic : Icons.mic_off,
+                color: Colors.white,
+              ),
+              onPressed: _isConnected ? _toggleMicrophone : null,
               iconSize: 36,
               padding: const EdgeInsets.all(24),
             ),
-          ),
-           const SizedBox(width: 20),
-          // Placeholder for symmetry from HTML
-          IconButton(
-            icon: const Icon(Icons.schema, color: Colors.transparent),
-            onPressed: () {},
-            iconSize: 28,
-            padding: const EdgeInsets.all(16),
           ),
         ],
       ),

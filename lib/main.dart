@@ -39,7 +39,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp.router(
       routerConfig: _router,
-      title: 'Esha AI Friend',
+      title: 'Isha AI Friend',
       theme: ThemeData(
         brightness: Brightness.dark,
         primaryColor: const Color(0xFF2c3e50),
