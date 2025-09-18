@@ -1,6 +1,6 @@
-
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../controllers/app_ctrl.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -12,7 +12,10 @@ class SettingsScreen extends StatelessWidget {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
-          onPressed: () => context.go('/ai'),
+          onPressed: () {
+            final appCtrl = Provider.of<AppCtrl>(context, listen: false);
+            appCtrl.navigateToWelcome();
+          },
         ),
         title: const Text('Settings'),
         backgroundColor: Colors.transparent,
@@ -33,7 +36,15 @@ class SettingsScreen extends StatelessWidget {
             const SizedBox(height: 30),
             buildSettingsSection('Voice & Audio', [
               buildSettingsItem(Icons.mic, 'Voice Settings'),
-              buildSettingsItem(Icons.volume_up, 'Auto-play responses', trailing: Switch(value: true, onChanged: (val){}, activeThumbColor: const Color(0xFF4a6741),)),
+              buildSettingsItem(
+                Icons.volume_up,
+                'Auto-play responses',
+                trailing: Switch(
+                  value: true,
+                  onChanged: (val) {},
+                  activeThumbColor: const Color(0xFF4a6741),
+                ),
+              ),
             ]),
             buildSettingsSection('Personalization', [
               buildSettingsItem(Icons.palette, 'Theme'),
@@ -56,10 +67,11 @@ class SettingsScreen extends StatelessWidget {
           width: 80,
           height: 80,
           decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [Color(0xFF2c3e50), Color(0xFF4a6741)],
-              )),
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              colors: [Color(0xFF2c3e50), Color(0xFF4a6741)],
+            ),
+          ),
           child: const Center(
             child: Text(
               'J',
@@ -72,9 +84,19 @@ class SettingsScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 15),
-        const Text('John Doe', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+        const Text(
+          'John Doe',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         const SizedBox(height: 5),
-        const Text('john@example.com', style: TextStyle(color: Colors.white70, fontSize: 16)),
+        const Text(
+          'john@example.com',
+          style: TextStyle(color: Colors.white70, fontSize: 16),
+        ),
       ],
     );
   }
@@ -110,8 +132,19 @@ class SettingsScreen extends StatelessWidget {
       ),
       child: ListTile(
         leading: Icon(icon, color: Colors.white),
-        title: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
-        trailing: trailing ?? const Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 16),
+        title: Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        trailing: trailing ??
+            const Icon(
+              Icons.arrow_forward_ios,
+              color: Colors.white70,
+              size: 16,
+            ),
         onTap: () {},
       ),
     );

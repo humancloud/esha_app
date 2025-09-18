@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../controllers/app_ctrl.dart';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -36,13 +37,11 @@ class LoginScreen extends StatelessWidget {
                     ],
                   ),
                   child: const Center(
-                    child: Text(
-                      'E',
-                      style: TextStyle(
-                        fontSize: 40,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF2c3e50),
-                      ),
+                    child: Image(
+                      image: AssetImage('assets/icon.png'),
+                      width: 50,
+                      height: 50,
+                      fit: BoxFit.fill,
                     ),
                   ),
                 ),
@@ -103,7 +102,14 @@ class LoginScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 30),
                 ElevatedButton(
-                  onPressed: () => context.go('/ai'),
+                  onPressed: () {
+                    final appCtrl = Provider.of<AppCtrl>(
+                      context,
+                      listen: false,
+                    );
+                    // Navigate to welcome screen
+                    appCtrl.navigateToWelcome();
+                  },
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 15),
                     shape: RoundedRectangleBorder(
