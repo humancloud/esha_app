@@ -1,7 +1,5 @@
-import 'dart:convert';
-
+import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 
 /// Data class representing the connection details needed to join a LiveKit room
@@ -29,20 +27,21 @@ class ConnectionDetails {
   }
 }
 
-/// An example service for fetching LiveKit authentication tokens
+/// A service for generating LiveKit authentication tokens using JWT
 ///
-/// To use the LiveKit Cloud sandbox (development only)
-/// - Enable your sandbox here https://cloud.livekit.io/projects/p_/sandbox/templates/token-server
-/// - Create .env file with your LIVEKIT_SANDBOX_ID
+/// This service generates JWT tokens for LiveKit authentication.
+/// Setup:
+/// 1. Create a .env file with your LiveKit credentials:
+///    - LIVEKIT_URL=wss://your-app.livekit.cloud
+///    - LIVEKIT_API_KEY=your_api_key_here
+///    - LIVEKIT_API_SECRET=your_api_secret_here
 ///
-/// To use a hardcoded token (development only)
-/// - Generate a token: https://docs.livekit.io/home/cli/cli-setup/#generate-access-token
-/// - Set `hardcodedServerUrl` and `hardcodedToken` below
+/// 2. Get your credentials from the LiveKit dashboard:
+///    - Sign up at https://cloud.livekit.io
+///    - Create a project and get your API key and secret
 ///
-/// To use your own server (production applications)
-/// - Add a token endpoint to your server with a LiveKit Server SDK https://docs.livekit.io/home/server/generating-tokens/
-/// - Modify or replace this class as needed to connect to your new token server
-/// - Rejoice in your new production-ready LiveKit application!
+/// For development, you can also use hardcoded credentials by setting
+/// `hardcodedServerUrl` and `hardcodedToken` below
 ///
 /// See https://docs.livekit.io/home/get-started/authentication for more information
 class TokenService {
@@ -52,9 +51,9 @@ class TokenService {
   final String? hardcodedServerUrl = null;
   final String? hardcodedToken = null;
 
-  // Get the sandbox ID from environment variables
-  String? get sandboxId {
-    final value = dotenv.env['LIVEKIT_SANDBOX_ID'];
+  // Get LiveKit server URL from environment variables
+  String? get serverUrl {
+    final value = dotenv.env['LIVEKIT_URL'];
     if (value != null) {
       // Remove unwanted double quotes if present
       return value.replaceAll('"', '');
@@ -62,11 +61,28 @@ class TokenService {
     return null;
   }
 
-  // LiveKit Cloud sandbox API endpoint
-  final String sandboxUrl = 'https://cloud-api.livekit.io/api/sandbox/connection-details';
+  // Get API key from environment variables
+  String? get apiKey {
+    final value = dotenv.env['LIVEKIT_API_KEY'];
+    if (value != null) {
+      // Remove unwanted double quotes if present
+      return value.replaceAll('"', '');
+    }
+    return null;
+  }
+
+  // Get API secret from environment variables
+  String? get apiSecret {
+    final value = dotenv.env['LIVEKIT_API_SECRET'];
+    if (value != null) {
+      // Remove unwanted double quotes if present
+      return value.replaceAll('"', '');
+    }
+    return null;
+  }
 
   /// Main method to get connection details
-  /// First tries hardcoded credentials, then falls back to sandbox
+  /// First tries hardcoded credentials, then generates JWT token
   Future<ConnectionDetails> fetchConnectionDetails({
     required String roomName,
     required String participantName,
@@ -80,47 +96,76 @@ class TokenService {
       return hardcodedDetails;
     }
 
-    return await fetchConnectionDetailsFromSandbox(
+    return fetchConnectionDetailsWithJWT(
       roomName: roomName,
       participantName: participantName,
     );
   }
 
-  Future<ConnectionDetails> fetchConnectionDetailsFromSandbox({
+  /// Generate connection details using JWT token
+  ConnectionDetails fetchConnectionDetailsWithJWT({
     required String roomName,
     required String participantName,
-  }) async {
-    if (sandboxId == null) {
-      throw Exception('Sandbox ID is not set');
+  }) {
+    if (serverUrl == null || apiKey == null || apiSecret == null) {
+      throw Exception(
+          'LiveKit configuration is missing. Please check your .env file for LIVEKIT_URL, LIVEKIT_API_KEY, and LIVEKIT_API_SECRET');
     }
-
-    final uri = Uri.parse(sandboxUrl).replace(queryParameters: {
-      'roomName': roomName,
-      'participantName': participantName,
-    });
 
     try {
-      final response = await http.post(
-        uri,
-        headers: {'X-Sandbox-ID': sandboxId!},
+      final token = generateJWT(
+        apiKey: apiKey!,
+        apiSecret: apiSecret!,
+        roomName: roomName,
+        participantName: participantName,
       );
 
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        try {
-          final data = jsonDecode(response.body);
-          return ConnectionDetails.fromJson(data);
-        } catch (e) {
-          _logger.severe('Error parsing connection details from LiveKit Cloud sandbox, response: ${response.body}');
-          throw Exception('Error parsing connection details from LiveKit Cloud sandbox');
-        }
-      } else {
-        _logger.severe('Error from LiveKit Cloud sandbox: ${response.statusCode}, response: ${response.body}');
-        throw Exception('Error from LiveKit Cloud sandbox');
-      }
+      return ConnectionDetails(
+        serverUrl: serverUrl!,
+        roomName: roomName,
+        participantName: participantName,
+        participantToken: token,
+      );
     } catch (e) {
-      _logger.severe('Failed to connect to LiveKit Cloud sandbox: $e');
-      throw Exception('Failed to connect to LiveKit Cloud sandbox');
+      _logger.severe('Failed to generate JWT token: $e');
+      throw Exception('Failed to generate JWT token');
     }
+  }
+
+  /// Generate a JWT token for LiveKit authentication
+  String generateJWT({
+    required String apiKey,
+    required String apiSecret,
+    required String roomName,
+    required String participantName,
+    Duration? validity,
+  }) {
+    final now = DateTime.now();
+    final validityDuration = validity ?? const Duration(hours: 1);
+    final expiration = now.add(validityDuration);
+
+    // Create the JWT payload
+    final payload = {
+      'iss': apiKey,
+      'sub': participantName,
+      'iat': now.millisecondsSinceEpoch ~/ 1000,
+      'exp': expiration.millisecondsSinceEpoch ~/ 1000,
+      'video': {
+        'room': roomName,
+        'roomJoin': true,
+        'canPublish': true,
+        'canSubscribe': true,
+        'canPublishData': true,
+      },
+    };
+
+    // Create and sign the JWT
+    final jwt = JWT(payload);
+    final token = jwt.sign(SecretKey(apiSecret));
+
+    _logger.info(
+        'Generated JWT token for participant: $participantName in room: $roomName');
+    return token;
   }
 
   ConnectionDetails? fetchHardcodedConnectionDetails({
