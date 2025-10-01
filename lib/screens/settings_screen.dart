@@ -1,19 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../controllers/app_ctrl.dart';
+import '../services/auth_service.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final appCtrl = Provider.of<AppCtrl>(context, listen: false);
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
           onPressed: () {
-            final appCtrl = Provider.of<AppCtrl>(context, listen: false);
             appCtrl.navigateToWelcome();
           },
         ),
@@ -53,6 +54,7 @@ class SettingsScreen extends StatelessWidget {
             buildSettingsSection('Account', [
               buildSettingsItem(Icons.lock, 'Privacy'),
               buildSettingsItem(Icons.info, 'About'),
+              buildLogoutItem(context),
             ]),
           ],
         ),
@@ -146,6 +148,81 @@ class SettingsScreen extends StatelessWidget {
               size: 16,
             ),
         onTap: () {},
+      ),
+    );
+  }
+
+  Widget buildLogoutItem(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.red.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(
+          color: Colors.red.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: ListTile(
+        leading: const Icon(Icons.logout, color: Colors.red),
+        title: const Text(
+          'Logout',
+          style: TextStyle(
+            color: Colors.red,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        trailing: const Icon(
+          Icons.arrow_forward_ios,
+          color: Colors.red,
+          size: 16,
+        ),
+        onTap: () async {
+          // Show confirmation dialog
+          final shouldLogout = await showDialog<bool>(
+            context: context,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                backgroundColor: const Color(0xFF2a4a6a),
+                title: const Text(
+                  'Logout',
+                  style: TextStyle(color: Colors.white),
+                ),
+                content: const Text(
+                  'Are you sure you want to logout?',
+                  style: TextStyle(color: Colors.white70),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: const Text(
+                      'Logout',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                  ),
+                ],
+              );
+            },
+          );
+
+          if (shouldLogout == true) {
+            // Perform logout
+            await AuthService.logout(context);
+
+            // Navigate to login screen
+            if (context.mounted) {
+              final appCtrl = Provider.of<AppCtrl>(context, listen: false);
+              appCtrl.navigateToLogin();
+            }
+          }
+        },
       ),
     );
   }

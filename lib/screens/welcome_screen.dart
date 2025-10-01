@@ -48,10 +48,10 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     super.dispose();
   }
 
-  void _navigateToAgent() {
+  void _navigateToAgent(BuildContext context) {
     final appCtrl = Provider.of<AppCtrl>(context, listen: false);
     appCtrl.navigateToAgent();
-    appCtrl.connect();
+    appCtrl.connect(context);
   }
 
   @override
@@ -99,12 +99,14 @@ class _WelcomeScreenState extends State<WelcomeScreen>
               Positioned(
                 top: 20,
                 right: 20,
-                child: IconButton(
-                  icon: const Icon(Icons.settings, color: Colors.white),
-                  onPressed: () {
-                    final appCtrl =
-                        Provider.of<AppCtrl>(context, listen: false);
-                    appCtrl.navigateToSettings();
+                child: Consumer<AppCtrl>(
+                  builder: (context, appCtrl, child) {
+                    return IconButton(
+                      icon: const Icon(Icons.settings, color: Colors.white),
+                      onPressed: () {
+                        appCtrl.navigateToSettings();
+                      },
+                    );
                   },
                 ),
               ),
@@ -233,52 +235,58 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     return AnimatedBuilder(
       animation: _buttonController,
       builder: (context, child) {
-        return GestureDetector(
-          onTap: _navigateToAgent,
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 18),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF2c3e50), Color(0xFF4a6741)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+        return Consumer<AppCtrl>(
+          builder: (context, appCtrl, child) {
+            return GestureDetector(
+              onTap: () => _navigateToAgent(context),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF2c3e50), Color(0xFF4a6741)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF2c3e50).withOpacity(0.4),
+                      blurRadius: 15,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      "Let's Talk!",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Transform.translate(
+                      offset: Offset(
+                        (0.5 -
+                                (0.5 - (_buttonController.value - 0.5).abs()) *
+                                    2) *
+                            3,
+                        0,
+                      ),
+                      child: const Text(
+                        '🚀',
+                        style: TextStyle(fontSize: 18),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              borderRadius: BorderRadius.circular(30),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF2c3e50).withOpacity(0.4),
-                  blurRadius: 15,
-                  offset: const Offset(0, 5),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text(
-                  "Let's Talk!",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Transform.translate(
-                  offset: Offset(
-                    (0.5 - (0.5 - (_buttonController.value - 0.5).abs()) * 2) *
-                        3,
-                    0,
-                  ),
-                  child: const Text(
-                    '🚀',
-                    style: TextStyle(fontSize: 18),
-                  ),
-                ),
-              ],
-            ),
-          ),
+            );
+          },
         );
       },
     );

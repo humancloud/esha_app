@@ -6,7 +6,8 @@ import 'package:provider/provider.dart' show Selector, ChangeNotifierProvider;
 import '../exts.dart';
 
 class AgentParticipantSelector extends StatelessWidget {
-  final Widget Function(BuildContext context, sdk.Participant? agentParticipant) builder;
+  final Widget Function(BuildContext context, sdk.Participant? agentParticipant)
+      builder;
 
   const AgentParticipantSelector({
     super.key,
@@ -14,11 +15,15 @@ class AgentParticipantSelector extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext ctx) => Selector<components.RoomContext, sdk.Participant?>(
+  Widget build(BuildContext ctx) =>
+      Selector<components.RoomContext, sdk.Participant?>(
         selector: (context, roomCtx) => roomCtx.agentParticipant,
-        builder: (context, agentParticipant, child) => ChangeNotifierProvider<components.ParticipantContext?>(
+        builder: (context, agentParticipant, child) =>
+            ChangeNotifierProvider<components.ParticipantContext?>(
           key: ValueKey("AgentParticipantSelector-${agentParticipant?.sid}"),
-          create: (context) => agentParticipant == null ? null : components.ParticipantContext(agentParticipant),
+          create: (context) => agentParticipant == null
+              ? null
+              : components.ParticipantContext(agentParticipant),
           child: builder(context, agentParticipant),
         ),
       );

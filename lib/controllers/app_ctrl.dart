@@ -21,7 +21,7 @@ class AppCtrl extends ChangeNotifier {
   static final _logger = Logger('AppCtrl');
 
   // States
-  AppScreenState appScreenState = AppScreenState.login;
+  AppScreenState appScreenState = AppScreenState.welcome;
   ConnectionState connectionState = ConnectionState.disconnected;
   AgentScreenState agentScreenState = AgentScreenState.visualizer;
 
@@ -80,6 +80,12 @@ class AppCtrl extends ChangeNotifier {
 
     // Add room error listener to handle runtime connection errors
     room.addListener(_onRoomUpdate);
+
+    // Add participant event listeners
+    room.addListener(() {
+      // This will be called on any room state change
+      notifyListeners();
+    });
   }
 
   void _onRoomUpdate() {
@@ -168,7 +174,7 @@ class AppCtrl extends ChangeNotifier {
     notifyListeners();
   }
 
-  void connect() async {
+  void connect(BuildContext context) async {
     _logger.info("Connect....");
     connectionState = ConnectionState.connecting;
     notifyListeners();
@@ -177,7 +183,7 @@ class AppCtrl extends ChangeNotifier {
       // Generate random room and participant names
       // In a real app, you'd likely use meaningful names
       final roomName =
-          'room-${(1000 + DateTime.now().millisecondsSinceEpoch % 9000)}';
+          'my-room'; // Use fixed room name for now to match the API response
       final participantName =
           'user-${(1000 + DateTime.now().millisecondsSinceEpoch % 9000)}';
 
@@ -185,6 +191,7 @@ class AppCtrl extends ChangeNotifier {
       final connectionDetails = await tokenService.fetchConnectionDetails(
         roomName: roomName,
         participantName: participantName,
+        context: context,
       );
 
       _logger.info(
@@ -231,12 +238,19 @@ class AppCtrl extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Start a 20-second timer to check for agent connection
+  // Start a 60-second timer to check for agent connection
   void _startAgentConnectionTimer() {
     _cancelAgentTimer(); // Cancel any existing timer
-    _logger.info("Starting 20-second timer to check for AGENT participant...");
+    _logger.info("Starting 60-second timer to check for AGENT participant...");
 
-    _agentConnectionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    _agentConnectionTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      // Log current participants for debugging
+      _logger.info("Current participants: ${room.remoteParticipants.length}");
+      for (final participant in room.remoteParticipants.values) {
+        _logger.info(
+            "Participant: ${participant.identity}, isAgent: ${participant.isAgent}, kind: ${participant.kind}");
+      }
+
       // Check if there's an agent participant
       final hasAgent = room.remoteParticipants.values.any(
         (participant) => participant.isAgent,
@@ -248,13 +262,16 @@ class AppCtrl extends ChangeNotifier {
         return;
       }
 
-      // If 10 seconds have elapsed and no agent found, disconnect
-      if (timer.tick >= 20) {
+      // If 60 seconds have elapsed and no agent found, disconnect
+      if (timer.tick >= 12) {
+        // 12 * 5 seconds = 60 seconds
         _logger.warning(
-          "No AGENT participant found after 20 seconds, disconnecting...",
+          "No AGENT participant found after 60 seconds, disconnecting...",
         );
         _cancelAgentTimer();
         disconnect();
+      } else {
+        _logger.info("Still waiting for agent... (${timer.tick * 5}s elapsed)");
       }
     });
   }

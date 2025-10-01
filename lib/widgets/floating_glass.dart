@@ -74,12 +74,16 @@ class FloatingGlassButton extends StatelessWidget {
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          sf.SFIcon(
-            sfIcon,
-            color: iconColor,
-            fontSize: 20,
+          Flexible(
+            child: sf.SFIcon(
+              sfIcon,
+              color: iconColor,
+              fontSize: 20,
+            ),
           ),
-          subWidget!,
+          Flexible(
+            child: subWidget!,
+          ),
         ],
       );
     }

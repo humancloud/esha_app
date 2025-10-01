@@ -1,6 +1,10 @@
-import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:logging/logging.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'dart:convert';
+import '../providers/auth_provider.dart';
 
 /// Data class representing the connection details needed to join a LiveKit room
 /// This includes the server URL, room name, participant info, and auth token
@@ -27,23 +31,19 @@ class ConnectionDetails {
   }
 }
 
-/// A service for generating LiveKit authentication tokens using JWT
+/// A service for creating LiveKit rooms and getting authentication tokens via API
 ///
-/// This service generates JWT tokens for LiveKit authentication.
+/// This service calls the backend API to create a room and get authentication tokens.
 /// Setup:
-/// 1. Create a .env file with your LiveKit credentials:
-///    - LIVEKIT_URL=wss://your-app.livekit.cloud
-///    - LIVEKIT_API_KEY=your_api_key_here
-///    - LIVEKIT_API_SECRET=your_api_secret_here
+/// 1. Create a .env file with your server configuration:
+///    - LIVEKIT_URL=ws://your-livekit-server:7880
+///    - SERVER_BASE_URL=http://your-backend-server:9001
 ///
-/// 2. Get your credentials from the LiveKit dashboard:
-///    - Sign up at https://cloud.livekit.io
-///    - Create a project and get your API key and secret
+/// 2. The backend API endpoint should be available at:
+///    - POST {SERVER_BASE_URL}/api/v1/livekit/create-room
 ///
 /// For development, you can also use hardcoded credentials by setting
 /// `hardcodedServerUrl` and `hardcodedToken` below
-///
-/// See https://docs.livekit.io/home/get-started/authentication for more information
 class TokenService {
   static final _logger = Logger('TokenService');
 
@@ -61,19 +61,9 @@ class TokenService {
     return null;
   }
 
-  // Get API key from environment variables
-  String? get apiKey {
-    final value = dotenv.env['LIVEKIT_API_KEY'];
-    if (value != null) {
-      // Remove unwanted double quotes if present
-      return value.replaceAll('"', '');
-    }
-    return null;
-  }
-
-  // Get API secret from environment variables
-  String? get apiSecret {
-    final value = dotenv.env['LIVEKIT_API_SECRET'];
+  // Get server base URL from environment variables
+  String? get serverBaseUrl {
+    final value = dotenv.env['SERVER_BASE_URL'];
     if (value != null) {
       // Remove unwanted double quotes if present
       return value.replaceAll('"', '');
@@ -82,10 +72,11 @@ class TokenService {
   }
 
   /// Main method to get connection details
-  /// First tries hardcoded credentials, then generates JWT token
+  /// First tries hardcoded credentials, then calls API to create room
   Future<ConnectionDetails> fetchConnectionDetails({
     required String roomName,
     required String participantName,
+    required BuildContext context,
   }) async {
     final hardcodedDetails = fetchHardcodedConnectionDetails(
       roomName: roomName,
@@ -96,28 +87,29 @@ class TokenService {
       return hardcodedDetails;
     }
 
-    return fetchConnectionDetailsWithJWT(
+    return fetchConnectionDetailsWithAPI(
       roomName: roomName,
       participantName: participantName,
+      context: context,
     );
   }
 
-  /// Generate connection details using JWT token
-  ConnectionDetails fetchConnectionDetailsWithJWT({
+  /// Create room and get connection details using API call
+  Future<ConnectionDetails> fetchConnectionDetailsWithAPI({
     required String roomName,
     required String participantName,
-  }) {
-    if (serverUrl == null || apiKey == null || apiSecret == null) {
+    required BuildContext context,
+  }) async {
+    if (serverUrl == null || serverBaseUrl == null) {
       throw Exception(
-          'LiveKit configuration is missing. Please check your .env file for LIVEKIT_URL, LIVEKIT_API_KEY, and LIVEKIT_API_SECRET');
+          'Server configuration is missing. Please check your .env file for LIVEKIT_URL and SERVER_BASE_URL');
     }
 
     try {
-      final token = generateJWT(
-        apiKey: apiKey!,
-        apiSecret: apiSecret!,
+      final token = await createRoomAndGetToken(
         roomName: roomName,
         participantName: participantName,
+        context: context,
       );
 
       return ConnectionDetails(
@@ -127,45 +119,73 @@ class TokenService {
         participantToken: token,
       );
     } catch (e) {
-      _logger.severe('Failed to generate JWT token: $e');
-      throw Exception('Failed to generate JWT token');
+      _logger.severe('Failed to create room and get token: $e');
+      throw Exception('Failed to create room and get token: $e');
     }
   }
 
-  /// Generate a JWT token for LiveKit authentication
-  String generateJWT({
-    required String apiKey,
-    required String apiSecret,
+  /// Create a room and get authentication token via API call
+  Future<String> createRoomAndGetToken({
     required String roomName,
     required String participantName,
-    Duration? validity,
-  }) {
-    final now = DateTime.now();
-    final validityDuration = validity ?? const Duration(hours: 1);
-    final expiration = now.add(validityDuration);
+    required BuildContext context,
+  }) async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final token = authProvider.token;
 
-    // Create the JWT payload
-    final payload = {
-      'iss': apiKey,
-      'sub': participantName,
-      'iat': now.millisecondsSinceEpoch ~/ 1000,
-      'exp': expiration.millisecondsSinceEpoch ~/ 1000,
-      'video': {
-        'room': roomName,
-        'roomJoin': true,
-        'canPublish': true,
-        'canSubscribe': true,
-        'canPublishData': true,
-      },
+    if (token == null) {
+      throw Exception('No authentication token found. Please login again.');
+    }
+    final url = Uri.parse('$serverBaseUrl/api/v1/livekit/create-room');
+
+    _logger.info('Creating room via API: $url');
+    _logger.info('Room name: $roomName, Participant: $participantName');
+
+    final requestBody = {
+      'roomName': roomName,
+      'participantName': participantName,
     };
 
-    // Create and sign the JWT
-    final jwt = JWT(payload);
-    final token = jwt.sign(SecretKey(apiSecret));
+    _logger.info('Request body: $requestBody');
 
-    _logger.info(
-        'Generated JWT token for participant: $participantName in room: $roomName');
-    return token;
+    try {
+      final response = await http
+          .post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode(requestBody),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      _logger.info('API Response status: ${response.statusCode}');
+      _logger.info('API Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        print('Response data--------------------------------: $responseData');
+
+        if (responseData['success'] == true && responseData['data'] != null) {
+          final roomToken = responseData['data']['roomToken'] as String;
+          _logger.info(
+              'Successfully created room and got token for participant: $participantName R $roomName -------------------------------- $roomToken');
+          return roomToken;
+        } else {
+          throw Exception(
+              'API returned unsuccessful response: ${responseData['message'] ?? 'Unknown error'}');
+        }
+      } else {
+        final errorData =
+            response.body.isNotEmpty ? jsonDecode(response.body) : {};
+        throw Exception(
+            'API request failed with status ${response.statusCode}: ${errorData['message'] ?? 'Unknown error'}');
+      }
+    } catch (e) {
+      _logger.severe('API call failed: $e');
+      rethrow;
+    }
   }
 
   ConnectionDetails? fetchHardcodedConnectionDetails({
