@@ -23,3 +23,9 @@ flutter pub run flutter_launcher_icons:main
    flutter pub get
    flutter run
 ```
+
+## AAB Build
+````
+flutter build appbundle --release --target-platform android-arm,android-arm64,android-x64
+flutter build appbundle
+````

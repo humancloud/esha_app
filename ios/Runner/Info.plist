@@ -52,5 +52,9 @@
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>This app uses the local network to discover Cast-enabled devices on your WiFi network.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs access to camera for video calls and live streaming.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app needs access to microphone for audio calls and recording.</string>
 </dict>
 </plist>
