@@ -58,6 +58,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
+        width: double.infinity,
+        height: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             colors: [Color(0xFF2c3e50), Color(0xFF4a6741)],
@@ -69,12 +71,18 @@ class _WelcomeScreenState extends State<WelcomeScreen>
           child: Stack(
             children: [
               SingleChildScrollView(
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 30, vertical: 40),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: MediaQuery.of(context).size.height - 
+                               MediaQuery.of(context).padding.top - 
+                               MediaQuery.of(context).padding.bottom,
+                  ),
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 30, vertical: 40),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
                       const SizedBox(height: 60), // Space for settings icon
                       // Animated Avatar Section
                       _buildAnimatedAvatar(),
@@ -92,6 +100,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                       _buildLetsTalkButton(),
                       const SizedBox(height: 40), // Bottom padding
                     ],
+                    ),
                   ),
                 ),
               ),
